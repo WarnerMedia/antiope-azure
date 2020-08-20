@@ -1,0 +1,33 @@
+<html>
+<head>
+<title>Azure Subscription Inventory</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
+</head>
+<body style="padding:10;">
+<h1>Azure Subscription Inventory</h1>
+Total Active Subscriptions: ${subscription_count}
+
+<table class="table table-sm table-bordered table-hover">
+<thead class="thead-light">
+    <tr>
+        <th scope="col">Subscription Name</th>
+        <th scope="col">Subscription ID</th>
+        <th scope="col">Tenant Name</th>
+        <th scope="col">Cost</th>
+        <th scope="col">Status</th>
+    </tr>
+</thead>
+
+% for row in subscriptions:
+    <tr>
+        <th scope="row">${row['display_name']}</th>
+        <td>${row['subscription_id']}</td>
+        <td>${row['tenant_name']}</td>
+        <td>${row['cost']}</td>
+        <td>${row['subscription_state']}</td>
+    </tr>
+%endfor
+
+</table>
+<font size=-2>Page Generated on ${timestamp}</font>
+</body></html>
