@@ -75,7 +75,7 @@ def save_resource_to_s3(prefix, resource_id, resource):
     :return: Nothing
     """
     s3client = boto3.client('s3')
-    object_key = "Azure-Resources/{}/{}.json".format(prefix, resource_id)
+    object_key = "Azure_Resources/{}/{}.json".format(prefix, resource_id)
 
     try:
         s3client.put_object(
