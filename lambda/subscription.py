@@ -4,11 +4,8 @@ from boto3.dynamodb.conditions import Key
 import json
 import os
 import logging
-import datetime
-from dateutil import tz
-from pprint import pprint
 
-from msrestazure.azure_active_directory import ServicePrincipalCredentials
+from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.consumption import ConsumptionManagementClient
 from azure.mgmt.network import NetworkManagementClient
@@ -24,7 +21,7 @@ from azure.mgmt.resourcegraph import ResourceGraphClient
 
 # Setup Logging
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logging.getLogger('botocore').setLevel(logging.WARNING)
 logging.getLogger('boto3').setLevel(logging.WARNING)
 
@@ -166,11 +163,12 @@ class AntiopeAzureSubscription(object):
             raise ServicePrincipalError(e)
 
         try:
-            self.credentials = ServicePrincipalCredentials(
+            self.credentials = ClientSecretCredential(
                 client_id=creds['application_id'],
-                secret=creds['key'],
-                tenant=creds['tenant_id']
+                client_secret=creds['key'],
+                tenant_id=creds['tenant_id']
             )
+                
         except Exception as e:
             raise ServicePrincipalError(e)
 

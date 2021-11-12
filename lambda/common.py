@@ -5,7 +5,6 @@ import boto3
 import time
 import urllib3
 from botocore.exceptions import ClientError
-from msrestazure.azure_active_directory import ServicePrincipalCredentials
 from subscription import AntiopeAzureSubscription
 from azure.mgmt.subscription import SubscriptionClient
 from azure.mgmt.consumption import ConsumptionManagementClient
@@ -45,7 +44,7 @@ def graph_resource_query(gr_query, target_sub, management_client):
     
     while attempt <= retries:
         
-        logger.info("Sending resource graph query for subscription {}({}), attempt: {} of {}".format(target_sub.display_name, target_sub.subscription_id, str(attempt), str(retries)))
+        logger.debug("Sending resource graph query for subscription {}({}), attempt: {} of {}".format(target_sub.display_name, target_sub.subscription_id, str(attempt), str(retries)))
         
         try:
             response = management_client.resources(q)
@@ -54,8 +53,9 @@ def graph_resource_query(gr_query, target_sub, management_client):
             status = '200'
             break
         
-        except:
+        except Exception as e:
             attempt +=1
+            logger.error(f'API Call failed for subscription {target_sub.display_name}({target_sub.subscription_id}. {e})' )
             time.sleep(10)
             
             if attempt > retries:

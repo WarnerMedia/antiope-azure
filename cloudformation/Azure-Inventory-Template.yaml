@@ -59,6 +59,12 @@ Parameters:
     Description: URL to the Transformed Template this stack was deployed with (for promotion to another environment)
     Type: String
 
+  pLambdaLogLevel:
+    Description: Logging level for python based lambdas
+    AllowedValues: [ DEBUG, INFO, WARNING ]
+    Type: String
+    Default: INFO
+
 Globals:
   Function:
     Runtime: python3.6
@@ -73,6 +79,7 @@ Globals:
           INVENTORY_BUCKET: !Ref pBucketName
           AZURE_SECRET_NAME: !Ref pAzureServiceSecretName
           SUBSCRIPTION_TABLE: !Ref SubscriptionDBTable
+          LOGGING: !Ref pLambdaLogLevel
 
 Resources:
 
