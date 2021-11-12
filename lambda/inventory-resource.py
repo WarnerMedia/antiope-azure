@@ -25,14 +25,12 @@ logging.basicConfig()
 
 
 # load the Azure Subs table
-antipe_azure_subs = resourceloader(f'ddb:{os.environ["SUBSCRIPTION_TABLE"]}')
+antipe_azure_subs = resourceloader(f'ddb://{os.environ["SUBSCRIPTION_TABLE"]}').getdata()
 AzureSubsHash = { sub["subscription_id"]:sub for sub in antipe_azure_subs }
 
 # load the Azure Tenants Secret
 tenant_secrets = get_secret( os.environ["AZURE_SECRET_NAME"] )
 
-# allocate elastic search object
-es = AwsElasticSearch( endpoint=f'https://{os.environ["ELASTICSEARCH_ENDPOINT"]}' )
 
 def handler(event, context):
 
@@ -73,8 +71,11 @@ def handler(event, context):
             # authenticate into the 0th subscription using the subscription_id, tenant_id and key values
             authentication_endpoint = 'https://login.microsoftonline.com/'
             resource_endpoint  = 'https://management.core.windows.net/'
-            auth_context = adal.AuthenticationContext(authentication_endpoint + tenant_secrets["tenant_name"][ "tenant_id" ])
-            access_token = auth_context.acquire_token_with_client_credentials(resource_endpoint, SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ][0]["subscription_id"], tenant_secrets["tenant_name"][ "key" ] )
+            print( tenant_secrets[tenant][ "tenant_id" ] )
+            auth_context = adal.AuthenticationContext(authentication_endpoint + tenant_secrets[tenant][ "tenant_id" ])
+            print( SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ][0]["subscription_id"] + ' : ' + tenant_secrets[tenant][ "key" ] )
+            auth_response = auth_context.acquire_token_with_client_credentials(resource_endpoint, tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ] )
+            access_token = auth_response.get('accessToken')
             headers = {"Authorization": 'Bearer ' + access_token}
             for sub in SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ]:
                 for resource in resources_to_capture:
@@ -83,16 +84,16 @@ def handler(event, context):
                     print(sub["display_name"] + ': ' + sub["subscription_id"] + ' -- ' + resource )
                     if len( resource_json_output["value"] ) < 1:
                         continue
-                    os.makedirs(f'json/{sub["subscriptionId"]}/{resource}', exist_ok=True)
+                    os.makedirs(f'json/{sub["subscription_id"]}/{resource}', exist_ok=True)
                     for item in resource_json_output["value"]:
                         item_name = item["id"].split("/")[-1]
-                        with open(f'json/{sub["subscriptionId"]}/{resource}/{item_name}.json', 'w') as outfile:
+                        with open(f'json/{sub["subscription_id"]}/{resource}/{item_name}.json', 'w') as outfile:
                             antiope_resource = mapAzureReourceToAntiopeResource( item, 
                                                                 resource_endpoints.getAntiopeResourceType( resource ), 
-                                                                subscription_id=sub["subscriptionId"], 
-                                                                sub_display_name=sub["displayName"],
-                                                                tenant_id=tenant_id,
-                                                                tenant_name='turner' 
+                                                                subscription_id=sub["subscription_id"], 
+                                                                sub_display_name=sub["display_name"],
+                                                                tenant_id=tenant_secrets[tenant]["tenant_id"],
+                                                                tenant_name=tenant 
                                                                 )
                             json.dump(antiope_resource, outfile, indent=2)
                         print( f'     {item["id"].split("/")[-1]}')

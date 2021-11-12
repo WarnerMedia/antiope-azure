@@ -35,6 +35,8 @@ class AWSevent(dict):
                     self.extract_events( evt )
         else:
             src = self.extract_source( event )
+            if src is None:
+                return
             if src not in self.events:
                 self.events[src] = []
             content = getattr( self, src )
@@ -51,8 +53,7 @@ class AWSevent(dict):
         # AWS stripped the eventsource so we have guess
         if "TopicArn" in record:
             return( "sns" )
-
-
+        
     def sns(self, record):
         if "Sns" in record:
             return( json.loads( record[ "Sns" ][ "Message" ] ) )
@@ -60,7 +61,6 @@ class AWSevent(dict):
             return( json.loads( record[ "Message" ] ) )
 
     def sqs(self, record):
-        print( "extracting sqs body")
         return(  json.loads( record[ "body" ] ) )
 
     def s3(self, record):
