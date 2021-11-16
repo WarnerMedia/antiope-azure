@@ -73,7 +73,6 @@ def handler(event, context):
             resource_endpoint  = 'https://management.core.windows.net/'
             print( tenant_secrets[tenant][ "tenant_id" ] )
             auth_context = adal.AuthenticationContext(authentication_endpoint + tenant_secrets[tenant][ "tenant_id" ])
-            print( SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ][0]["subscription_id"] + ' : ' + tenant_secrets[tenant][ "key" ] )
             auth_response = auth_context.acquire_token_with_client_credentials(resource_endpoint, tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ] )
             access_token = auth_response.get('accessToken')
             headers = {"Authorization": 'Bearer ' + access_token}
@@ -202,7 +201,7 @@ class resourceEndponts():
 
 def getAzureRegion(azure_resource_object):
     if "location" in azure_resource_object:
-        return( azure_resource_object["location"] )
+        return( azure_resource_object["location"].replace( " ", "").lower() )
     return( "unknown")
 
 def mapAzureReourceToAntiopeResource(azure_resource_object, antiope_resource_type, **kwargs):
