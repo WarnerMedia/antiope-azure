@@ -11,9 +11,10 @@ import datetime
 import logging
 
 from resourceloader import resourceloader
+from resourcewriter import resourcewriter
 from awssecret import get_secret
 from awsevents import AWSevent
-from awselasticsearch import AwsElasticSearch
+from cloudguard import CloudGuard
 
 # set up logging
 logger = logging.getLogger()
@@ -31,9 +32,20 @@ AzureSubsHash = { sub["subscription_id"]:sub for sub in antipe_azure_subs }
 # load the Azure Tenants Secret
 tenant_secrets = get_secret( os.environ["AZURE_SECRET_NAME"] )
 
+# retrieve the cloudguard onboarded accounts
+# fetch cloudguard secret once 
+cg_secret_name = os.getenv('CLOUDGUARD_SECRET', default=None )
+if cg_secret_name:
+    cloudguard_creds = get_secret( cg_secret_name ) 
+    
+    cg = CloudGuard( creds=cloudguard_creds )
+    if cg.error is not False:
+        logger.error( f'GetAzureSubs received response {cg.error["status_code"]}.  Unable to get Azure Subs.' )
+        cg_azure_subs = []
+    else
+        cg_azure_subs = cg.AzureSubsHash.keys()
 
 def handler(event, context):
-
     # manipulate logging messages in the lambda env so we get a run id on every message
     if os.getenv( 'AWS_EXECUTION_ENV' ):
         ch = logging.StreamHandler()
@@ -51,6 +63,8 @@ def handler(event, context):
         logger.info( f'No sns records found within event: {event}')
         return( event )
 
+    inventory_bucket = os.environ["INVENTORY_BUCKET"]
+
     # we should only have a single record in the event but can't guarantee so we are processing all sns records
     for record in evt.events["sns"]:
         # sort the subs to be scanned by tenant reducsing authentcation requests
@@ -65,37 +79,39 @@ def handler(event, context):
 
         # alocate the resource endpoints object
         resource_endpoints = resourceEndponts()
-        resources_to_capture = resource_endpoints.getKnownResources()
+        #resources_to_capture = resource_endpoints.getKnownResources()
+        resources_to_capture = [ "nsg" ]
 
         for tenant in SubsByTenantHash:
             # authenticate into the 0th subscription using the subscription_id, tenant_id and key values
             authentication_endpoint = 'https://login.microsoftonline.com/'
             resource_endpoint  = 'https://management.core.windows.net/'
-            print( tenant_secrets[tenant][ "tenant_id" ] )
             auth_context = adal.AuthenticationContext(authentication_endpoint + tenant_secrets[tenant][ "tenant_id" ])
             auth_response = auth_context.acquire_token_with_client_credentials(resource_endpoint, tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ] )
             access_token = auth_response.get('accessToken')
             headers = {"Authorization": 'Bearer ' + access_token}
             for sub in SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ]:
+                if sub["subscription_id"] not in cg_azure_subs:
+                    continue
                 for resource in resources_to_capture:
                     resource_endpoint = resource_endpoints.getResourceEndpoint( resource, sub["subscription_id"] )
                     resource_json_output = requests.get(resource_endpoint,headers=headers).json()
-                    print(sub["display_name"] + ': ' + sub["subscription_id"] + ' -- ' + resource )
+                    #print(sub["display_name"] + ': ' + sub["subscription_id"] + ' -- ' + resource )
                     if len( resource_json_output["value"] ) < 1:
                         continue
-                    os.makedirs(f'json/{sub["subscription_id"]}/{resource}', exist_ok=True)
+                    s3prefix = f'Azure_Resources/{resource_endpoints.getS3Prefix(resource)}'
+                    #os.makedirs( s3prefix, exist_ok=True)
                     for item in resource_json_output["value"]:
                         item_name = item["id"].split("/")[-1]
-                        with open(f'json/{sub["subscription_id"]}/{resource}/{item_name}.json', 'w') as outfile:
-                            antiope_resource = mapAzureReourceToAntiopeResource( item, 
-                                                                resource_endpoints.getAntiopeResourceType( resource ), 
-                                                                subscription_id=sub["subscription_id"], 
-                                                                sub_display_name=sub["display_name"],
-                                                                tenant_id=tenant_secrets[tenant]["tenant_id"],
-                                                                tenant_name=tenant 
-                                                                )
-                            json.dump(antiope_resource, outfile, indent=2)
-                        print( f'     {item["id"].split("/")[-1]}')
+                        antiope_resource = mapAzureReourceToAntiopeResource( item, 
+                                                            resource_endpoints.getAntiopeResourceType( resource ), 
+                                                            subscription_id=sub["subscription_id"], 
+                                                            sub_display_name=sub["display_name"],
+                                                            tenant_id=tenant_secrets[tenant]["tenant_id"],
+                                                            tenant_name=tenant 
+                                                            )
+                        print( f's3://{inventory_bucket}/{s3prefix}/{item_name}.json' )
+                        #resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
                 
 
 class resourceEndponts():
@@ -199,6 +215,9 @@ class resourceEndponts():
     def getKnownResources(self):
         return( set( self.res.keys() ) - set( self.excludes) )
 
+    def getS3Prefix(self, resource):
+        return( self.res[resource]["s3prefix"] )
+
 def getAzureRegion(azure_resource_object):
     if "location" in azure_resource_object:
         return( azure_resource_object["location"].replace( " ", "").lower() )
@@ -223,44 +242,3 @@ def mapAzureReourceToAntiopeResource(azure_resource_object, antiope_resource_typ
 
 
 
-# client_id="03e684f8-9051-4f8b-8fb2-f9e1a817a542"
-# client_secret="e4Kl-_aNIU4MKhQQ7F@I/NakuUc51xbQ"
-# tenant_id="0eb48825-e871-4459-bc72-d0ecd68f1f39"
-
-# authentication_endpoint = 'https://login.microsoftonline.com/'
-# resource  = 'https://management.core.windows.net/'
-
-# # get an Azure access token using the adal library
-# context = adal.AuthenticationContext(authentication_endpoint + tenant_id)
-# token_response = context.acquire_token_with_client_credentials(resource, client_id, client_secret)
-
-# access_token = token_response.get('accessToken')
-
-# subscriptions_endpoint = 'https://management.azure.com/subscriptions/?api-version=2015-01-01'
-
-# headers = {"Authorization": 'Bearer ' + access_token}
-# json_output = requests.get(subscriptions_endpoint,headers=headers).json()
-# resource_endpoints = resourceEndponts()
-# resources = resource_endpoints.getKnownResources()
-
-# for sub in json_output["value"]:
-#     #print(sub["displayName"] + ': ' + sub["subscriptionId"])
-#     for resource in resources:
-#         resource_endpoint = resource_endpoints.getResourceEndpoint( resource, sub["subscriptionId"] )
-#         resource_json_output = requests.get(resource_endpoint,headers=headers).json()
-#         print(sub["displayName"] + ': ' + sub["subscriptionId"] + ' -- ' + resource )
-#         if len( resource_json_output["value"] ) < 1:
-#             continue
-#         os.makedirs(f'json/{sub["subscriptionId"]}/{resource}', exist_ok=True)
-#         for item in resource_json_output["value"]:
-#             item_name = item["id"].split("/")[-1]
-#             with open(f'json/{sub["subscriptionId"]}/{resource}/{item_name}.json', 'w') as outfile:
-#                 antiope_resource = mapAzureReourceToAntiopeResource( item, 
-#                                                     resource_endpoints.getAntiopeResourceType( resource ), 
-#                                                     subscription_id=sub["subscriptionId"], 
-#                                                     sub_display_name=sub["displayName"],
-#                                                     tenant_id=tenant_id,
-#                                                     tenant_name='turner' 
-#                                                     )
-#                 json.dump(antiope_resource, outfile, indent=2)
-#             print( f'     {item["id"].split("/")[-1]}')

@@ -4,17 +4,20 @@ mako
 boto3
 openpyxl
 msrest
-msrestazure
+adal
+azure-mgmt-subscription
+azure-mgmt-consumption
+azure-mgmt-resourcegraph
 azure-identity
 azure-mgmt-compute
-azure-mgmt-network
-azure-mgmt-subscription
-azure-mgmt-storage
-azure-mgmt-sql
-azure-mgmt-keyvault
-azure-mgmt-resource
-azure-mgmt-resourcegraph
-azure-mgmt-operationsmanagement		
-azure-mgmt-search		
-azure-mgmt-security		
-azure-mgmt-consumption
+msrestazure
+
+
+# azure-mgmt-network
+# azure-mgmt-storage
+# azure-mgmt-sql
+# azure-mgmt-keyvault
+# azure-mgmt-resource
+# azure-mgmt-operationsmanagement		
+# azure-mgmt-search		
+# azure-mgmt-security		

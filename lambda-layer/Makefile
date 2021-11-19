@@ -42,7 +42,9 @@ zipfile:
 	zip -r $(LAYER_PACKAGE) python
 
 deps:
-	$(PIP) install -r azure-requirements.txt -t python/lib/$(pythonver)/site-packages/ --upgrade
+	docker run -v "$(PWD)":/var/task "public.ecr.aws/sam/build-python3.6" /bin/sh -c "pip install --upgrade pip;pip install -r azure-requirements.txt -t python/lib/$(pythonver)/site-packages/ --upgrade; exit"
+#	#$(PIP) install -r azure-requirements.txt -t python/lib/$(pythonver)/site-packages/ --upgrade
+	azure-sdk-trim --azure_dir python/lib/$(pythonver)/site-packages/
 
 upload:
 	aws s3 cp $(LAYER_PACKAGE) s3://$(BUCKET)/$(OBJECT_KEY)

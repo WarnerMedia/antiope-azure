@@ -65,6 +65,10 @@ Parameters:
     Type: String
     Default: INFO
 
+  pCloudGuardSecret:
+    Type: String
+    Default: antiope-cloudguard-subscriptions-curator-dev
+
 Globals:
   Function:
     Runtime: python3.6
@@ -80,6 +84,7 @@ Globals:
           AZURE_SECRET_NAME: !Ref pAzureServiceSecretName
           SUBSCRIPTION_TABLE: !Ref SubscriptionDBTable
           LOGGING: !Ref pLambdaLogLevel
+          CLOUDGUARD_SECRET: !Ref pCloudGuardSecret
 
 Resources:
 
@@ -290,6 +295,18 @@ Resources:
       Role: !GetAtt InventoryLambdaRole.Arn
       CodeUri: ../lambda
 
+  #
+  # Inventory Lambda Functions
+  #
+
+  InventoryResourceLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-inventory-resource"
+      Description: AWS Lamdba to pull vm data from Azure Organization into the S3
+      Handler: inventory-resource.handler
+      Role: !GetAtt InventoryLambdaRole.Arn
+      CodeUri: ../lambda
   #
   # State Machine Lambda Functions
   #

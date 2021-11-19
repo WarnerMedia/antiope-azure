@@ -5,9 +5,9 @@ import logging
 import boto3
 from botocore.exceptions import ClientError
 from common import *
-from subscription import *
+#from subscription import *
 from azure.mgmt.subscription import SubscriptionClient
-
+from azure.identity import ClientSecretCredential
 
 # Setup Logging
 logger = logging.getLogger()
@@ -31,16 +31,14 @@ def handler(event, context):
     collected_subs = []
     for tenant, credential_info in azure_secrets.items():
 
-        azure_creds = ServicePrincipalCredentials(
+        azure_creds = ClientSecretCredential(
             client_id=credential_info["application_id"],
-            secret=credential_info["key"],
-            tenant=credential_info["tenant_id"]
+            client_secret=credential_info["key"],
+            tenant_id=credential_info["tenant_id"]
         )
-
         resource_client = SubscriptionClient(azure_creds)
         
         for subscription in resource_client.subscriptions.list():
-
             # Some subscrption ID's retured by the API are not queryable, this seems like a bug with MS API.
             # There may also be a better way of determining this...
             queryable = 'false'

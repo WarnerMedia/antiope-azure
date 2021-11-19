@@ -7,17 +7,19 @@ import logging
 
 from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.consumption import ConsumptionManagementClient
-from azure.mgmt.network import NetworkManagementClient
-from azure.mgmt.subscription import SubscriptionClient
-from azure.mgmt.storage import StorageManagementClient
-#from azure.mgmt.web import WebSiteManagementClient
-from azure.mgmt.sql import SqlManagementClient
-#from azure.mgmt.datafactory import DataFactoryManagementClient
-from azure.mgmt.keyvault import KeyVaultManagementClient
-#from azure.mgmt.logic import LogicManagementClient
-from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resourcegraph import ResourceGraphClient
+
+# from azure.mgmt.consumption import ConsumptionManagementClient
+# from azure.mgmt.network import NetworkManagementClient
+# from azure.mgmt.subscription import SubscriptionClient
+# from azure.mgmt.storage import StorageManagementClient
+# #from azure.mgmt.web import WebSiteManagementClient
+# from azure.mgmt.sql import SqlManagementClient
+# #from azure.mgmt.datafactory import DataFactoryManagementClient
+# from azure.mgmt.keyvault import KeyVaultManagementClient
+# #from azure.mgmt.logic import LogicManagementClient
+# from azure.mgmt.resource import ResourceManagementClient
+
 
 # Setup Logging
 logger = logging.getLogger()
