@@ -93,9 +93,10 @@ def handler(event, context):
             app_token = app.acquire_token_for_client( scopes ).get( "access_token")
             #access_token = auth_response.get('accessToken')
             headers = {"Authorization": 'Bearer ' + app_token}
-            for sub in SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ]:
+            for sub in SubsByTenantHash[ tenant ]:
                 if sub["subscription_id"] not in cg_azure_subs:
                     continue
+                logger.debug(f'Beginning resource capture for {tenant} {sub["display_name"]} {sub["subscription_id"]}.  Resources {resources_to_capture}')
                 for resource in resources_to_capture:
                     resource_endpoint = resource_endpoints.getResourceEndpoint( resource, sub["subscription_id"] )
                     resource_json_output = requests.get(resource_endpoint,headers=headers).json()
