@@ -104,7 +104,6 @@ def handler(event, context):
                     if len( resource_json_output["value"] ) < 1:
                         continue
                     s3prefix = f'Azure_Resources/{resource_endpoints.getS3Prefix(resource)}'
-                    #os.makedirs( s3prefix, exist_ok=True)
                     for item in resource_json_output["value"]:
                         item_name = item["id"].split("/")[-1]
                         antiope_resource = mapAzureReourceToAntiopeResource( item, 
@@ -114,8 +113,7 @@ def handler(event, context):
                                                             tenant_id=tenant_secrets[tenant]["tenant_id"],
                                                             tenant_name=tenant 
                                                             )
-                        print( f's3://{inventory_bucket}/{s3prefix}/{item_name}.json' )
-                        #resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
+                        resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
                 
 
 class resourceEndponts():
