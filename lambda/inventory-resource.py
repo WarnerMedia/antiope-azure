@@ -3,7 +3,7 @@
 inventory-resource.py - an attempt at a generic extractor of known resources from Azure
 given an array or (known) resource name will extract those resources from our Azure Enterprise
 """
-import adal
+import msal
 import requests
 import os
 import json
@@ -42,7 +42,7 @@ if cg_secret_name:
     if cg.error is not False:
         logger.error( f'GetAzureSubs received response {cg.error["status_code"]}.  Unable to get Azure Subs.' )
         cg_azure_subs = []
-    else
+    else:
         cg_azure_subs = cg.AzureSubsHash.keys()
 
 def handler(event, context):
@@ -86,10 +86,13 @@ def handler(event, context):
             # authenticate into the 0th subscription using the subscription_id, tenant_id and key values
             authentication_endpoint = 'https://login.microsoftonline.com/'
             resource_endpoint  = 'https://management.core.windows.net/'
-            auth_context = adal.AuthenticationContext(authentication_endpoint + tenant_secrets[tenant][ "tenant_id" ])
-            auth_response = auth_context.acquire_token_with_client_credentials(resource_endpoint, tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ] )
-            access_token = auth_response.get('accessToken')
-            headers = {"Authorization": 'Bearer ' + access_token}
+            # auth_context = adal.AuthenticationContext(authentication_endpoint + tenant_secrets[tenant][ "tenant_id" ])
+            # auth_response = auth_context.acquire_token_with_client_credentials(resource_endpoint, tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ] )
+            scopes = [ "https://management.core.windows.net//.default" ];
+            app = msal.ConfidentialClientApplication(tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ], authority=f'{authentication_endpoint}{tenant_secrets[tenant][ "tenant_id" ]}')
+            app_token = app.acquire_token_for_client( scopes ).get( "access_token")
+            #access_token = auth_response.get('accessToken')
+            headers = {"Authorization": 'Bearer ' + app_token}
             for sub in SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ]:
                 if sub["subscription_id"] not in cg_azure_subs:
                     continue

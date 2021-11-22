@@ -65,9 +65,9 @@ Parameters:
     Type: String
     Default: INFO
 
-  pCloudGuardSecret:
+  pCloudGuardSecretArn:
     Type: String
-    Default: antiope-cloudguard-subscriptions-curator-dev
+    Default: arn:aws:secretsmanager:us-east-1:501561212468:secret:antiope-cloudguard-subscriptions-curator-dev-OXIli8
 
 Globals:
   Function:
@@ -84,7 +84,7 @@ Globals:
           AZURE_SECRET_NAME: !Ref pAzureServiceSecretName
           SUBSCRIPTION_TABLE: !Ref SubscriptionDBTable
           LOGGING: !Ref pLambdaLogLevel
-          CLOUDGUARD_SECRET: !Ref pCloudGuardSecret
+          CLOUDGUARD_SECRET: !Ref pCloudGuardSecretArn
 
 Resources:
 
@@ -245,7 +245,9 @@ Resources:
           Statement:
           - Effect: "Allow"
             Action: "secretsmanager:GetSecretValue"
-            Resource: !Ref AzureServiceSecret
+            Resource: 
+              - !Ref AzureServiceSecret
+              - !Ref pCloudGuardSecretArn
       - PolicyName: PublishToSQS
         PolicyDocument:
           Version: '2012-10-17'
@@ -360,10 +362,25 @@ Resources:
       SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
       Action: lambda:invokeFunction
 
+  PullResourceDataLambdaFunctionTriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt InventoryResourceLambdaFunction.Arn
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
+      Action: lambda:invokeFunction
+
   PullVMDataLambdaFunctionTriggerSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Endpoint: !GetAtt PullVMDataLambdaFunction.Arn
+      Protocol: lambda
+      TopicArn: !Ref 'TriggerSubscriptionInventoryFunctionTopic'
+
+  PullResourceLambdaFunctionTriggerSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt InventoryResourceLambdaFunction.Arn
       Protocol: lambda
       TopicArn: !Ref 'TriggerSubscriptionInventoryFunctionTopic'
 
