@@ -37,7 +37,7 @@ def handler(event, context):
             tenant_id=credential_info["tenant_id"]
         )
         resource_client = SubscriptionClient(azure_creds)
-        
+
         for subscription in resource_client.subscriptions.list():
             # Some subscrption ID's retured by the API are not queryable, this seems like a bug with MS API.
             # There may also be a better way of determining this...
@@ -60,7 +60,7 @@ def handler(event, context):
             }
 
             # Add subscriptions to DynamoDB subscriptions table.
-            create_or_update_subscription(subscription_dict, subscription_table)
+            #create_or_update_subscription(subscription_dict, subscription_table)
 
         if collected_subs is None:
             raise Exception("No Subscriptions found. Aborting...")
