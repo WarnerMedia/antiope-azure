@@ -79,15 +79,12 @@ def handler(event, context):
 
         # alocate the resource endpoints object
         resource_endpoints = resourceEndponts()
-        #resources_to_capture = resource_endpoints.getKnownResources()
-        resources_to_capture = [ "nsg" ]
+        resources_to_capture = resource_endpoints.getKnownResources(excludes=['sqldb', 'vminstance']) # sqldb is broken and vminstance is handled by inventory-vms.py lambda
 
         for tenant in SubsByTenantHash:
             # authenticate into the 0th subscription using the subscription_id, tenant_id and key values
             authentication_endpoint = 'https://login.microsoftonline.com/'
             resource_endpoint  = 'https://management.core.windows.net/'
-            # auth_context = adal.AuthenticationContext(authentication_endpoint + tenant_secrets[tenant][ "tenant_id" ])
-            # auth_response = auth_context.acquire_token_with_client_credentials(resource_endpoint, tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ] )
             scopes = [ "https://management.core.windows.net//.default" ];
             app = msal.ConfidentialClientApplication(tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ], authority=f'{authentication_endpoint}{tenant_secrets[tenant][ "tenant_id" ]}')
             app_token = app.acquire_token_for_client( scopes ).get( "access_token")
@@ -113,13 +110,20 @@ def handler(event, context):
                                                             tenant_id=tenant_secrets[tenant]["tenant_id"],
                                                             tenant_name=tenant 
                                                             )
-                        resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
-                
+                        #resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
+                        os.makedirs( f'{inventory_bucket}/{s3prefix}', exist_ok=True )
+                        resourcewriter( dst=f'file://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
 
 class resourceEndponts():
-    def __init__(self):
-        self.azure_management_endpoint = "https://management.azure.com"
-        self.excludes = ['sqldb', 'vminstance']
+    def __init__(self, **kwargs):
+        # set defaults
+        self.opts = {}
+        self.opts["azure_management_endpoint"] = "https://management.azure.com"
+        self.opts["excludes"] = ['sqldb', 'vminstance'] # sqldb is broken and vminstance is handled by inventory_vm lambda
+
+        for key in kwargs:
+            self.opts[key] = kwargs[key]
+
         self.res = {
             "akscluster": {
                 "path": 'providers/Microsoft.ContainerService/managedClusters?api-version=2021-07-01',
@@ -212,10 +216,14 @@ class resourceEndponts():
         return( self.res[resource]["a_res_type"] )
 
     def getResourceEndpoint(self, resource, subscription ):
-        return( f'{self.azure_management_endpoint}/subscriptions/{subscription}/{self.res[resource]["path"]}' )
+        return( f'{self.opts[ "azure_management_endpoint"]}/subscriptions/{subscription}/{self.res[resource]["path"]}' )
 
-    def getKnownResources(self):
-        return( set( self.res.keys() ) - set( self.excludes) )
+    def getKnownResources(self, **kwargs):
+        if "excludes" in kwargs:
+            excludes = kwargs["excludes"]
+        else:
+            excludes = self.opts["excludes"]
+        return(set( self.res.keys() ) - set(excludes) )
 
     def getS3Prefix(self, resource):
         return( self.res[resource]["s3prefix"] )
