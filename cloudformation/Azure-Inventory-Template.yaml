@@ -309,6 +309,20 @@ Resources:
       Handler: inventory-resource.handler
       Role: !GetAtt InventoryLambdaRole.Arn
       CodeUri: ../lambda
+
+  #
+  # Inventory Lambda Functions
+  #
+
+  InventoryResourceVMLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-inventory-resource-vm"
+      Description: AWS Lamdba to pull vm data from Azure Organization into the S3
+      Handler: inventory-resource-vm.handler
+      Role: !GetAtt InventoryLambdaRole.Arn
+      CodeUri: ../lambda
+
   #
   # State Machine Lambda Functions
   #
@@ -370,6 +384,14 @@ Resources:
       SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
       Action: lambda:invokeFunction
 
+  PullResourceDataLambdaFunctionTriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt InventoryResourceVMLambdaFunction.Arn
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
+      Action: lambda:invokeFunction
+
   PullVMDataLambdaFunctionTriggerSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -381,6 +403,13 @@ Resources:
     Type: AWS::SNS::Subscription
     Properties:
       Endpoint: !GetAtt InventoryResourceLambdaFunction.Arn
+      Protocol: lambda
+      TopicArn: !Ref 'TriggerSubscriptionInventoryFunctionTopic'
+
+  PullInventoryResourceVMLambdaFunctionTriggerSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt InventoryResourceVMLambdaFunction.Arn
       Protocol: lambda
       TopicArn: !Ref 'TriggerSubscriptionInventoryFunctionTopic'
 

@@ -32,6 +32,10 @@ AzureSubsHash = { sub["subscription_id"]:sub for sub in antipe_azure_subs }
 # load the Azure Tenants Secret
 tenant_secrets = get_secret( os.environ["AZURE_SECRET_NAME"] )
 
+#
+# Limit the extraction of resources to only those subscriptions that have been 
+# onboarded to CloudGurard.
+#
 # retrieve the cloudguard onboarded accounts
 # fetch cloudguard secret once 
 cg_secret_name = os.getenv('CLOUDGUARD_SECRET', default=None )
@@ -79,25 +83,24 @@ def handler(event, context):
 
         # alocate the resource endpoints object
         resource_endpoints = resourceEndponts()
-        resources_to_capture = resource_endpoints.getKnownResources(excludes=['sqldb', 'vminstance']) # sqldb is broken and vminstance is handled by inventory-vms.py lambda
+        resources_to_capture = resource_endpoints.getKnownResources(excludes=['sqldb']) # sqldb is broken and vminstance is handled by inventory-vms.py lambda
 
         for tenant in SubsByTenantHash:
             # authenticate into the 0th subscription using the subscription_id, tenant_id and key values
             authentication_endpoint = 'https://login.microsoftonline.com/'
             resource_endpoint  = 'https://management.core.windows.net/'
-            scopes = [ "https://management.core.windows.net//.default" ];
+            scopes = [ "https://management.core.windows.net//.default" ]
             app = msal.ConfidentialClientApplication(tenant_secrets[tenant]["application_id"], tenant_secrets[tenant][ "key" ], authority=f'{authentication_endpoint}{tenant_secrets[tenant][ "tenant_id" ]}')
             app_token = app.acquire_token_for_client( scopes ).get( "access_token")
-            #access_token = auth_response.get('accessToken')
             headers = {"Authorization": 'Bearer ' + app_token}
             for sub in SubsByTenantHash[ tenant ]:
+                # Limit to only those subscriptions onboarded to CloudGuard
                 if sub["subscription_id"] not in cg_azure_subs:
                     continue
                 logger.debug(f'Beginning resource capture for {tenant} {sub["display_name"]} {sub["subscription_id"]}.  Resources {resources_to_capture}')
                 for resource in resources_to_capture:
                     resource_endpoint = resource_endpoints.getResourceEndpoint( resource, sub["subscription_id"] )
                     resource_json_output = requests.get(resource_endpoint,headers=headers).json()
-                    #print(sub["display_name"] + ': ' + sub["subscription_id"] + ' -- ' + resource )
                     if len( resource_json_output["value"] ) < 1:
                         continue
                     s3prefix = f'Azure_Resources/{resource_endpoints.getS3Prefix(resource)}'
@@ -205,6 +208,12 @@ class resourceEndponts():
                 "path": 'providers/Microsoft.Compute/virtualMachines?api-version=2021-07-01',
                 "azcli": "az vm list",
                 "s3prefix": "vm/instance",
+                "a_res_type": "VMInstance"
+                },
+            "vmscaleset": {
+                "path": 'providers/Microsoft.Compute/virtualMachineScaleSets?api-version=2021-07-01',
+                "azcli": "az vmss list",
+                "s3prefix": "vm/scaleset",
                 "a_res_type": "VMSSInstance"
                 },
             "vnet": {

@@ -10,6 +10,8 @@ FILES =	inventory-vm.py \
 		report-subs.py \
 		sub_handler.py \
 		common.py \
+		inventory-resource.py \
+		inventory-resource-vm.py \
 		subscription.py
 
 DEPENDENCIES=
