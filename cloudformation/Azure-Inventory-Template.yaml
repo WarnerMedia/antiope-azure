@@ -368,7 +368,7 @@ Resources:
     Properties:
       DisplayName: !Sub "Triggers the Antiope Inventory of each Subscription"
 
-  PullVMDataLambdaFunctionTriggerPermission:
+  PullVMDataLambdaTriggerPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt PullVMDataLambdaFunction.Arn
@@ -376,7 +376,7 @@ Resources:
       SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
       Action: lambda:invokeFunction
 
-  PullResourceDataLambdaFunctionTriggerPermission:
+  PullResourceDataLambdaTriggerPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt InventoryResourceLambdaFunction.Arn
@@ -384,7 +384,7 @@ Resources:
       SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
       Action: lambda:invokeFunction
 
-  PullResourceDataLambdaFunctionTriggerPermission:
+  PullResourceVMDataLambdaTriggerPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !GetAtt InventoryResourceVMLambdaFunction.Arn
