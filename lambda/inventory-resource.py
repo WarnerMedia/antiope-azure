@@ -15,6 +15,7 @@ from resourcewriter import resourcewriter
 from awssecret import get_secret
 from awsevents import AWSevent
 from cloudguard import CloudGuard
+from azureresources import resourceEndpoints
 
 # set up logging
 logger = logging.getLogger()
@@ -82,7 +83,7 @@ def handler(event, context):
                 SubsByTenantHash[ AzureSubsHash[sub]["tenant_name"] ].append( AzureSubsHash[sub] )
 
         # alocate the resource endpoints object
-        resource_endpoints = resourceEndponts()
+        resource_endpoints = resourceEndpoints()
         resources_to_capture = resource_endpoints.getKnownResources(excludes=['sqldb']) # sqldb is broken and vminstance is handled by inventory-vms.py lambda
 
         for tenant in SubsByTenantHash:
@@ -118,126 +119,6 @@ def handler(event, context):
                         else: # assume we are testing locally 
                             os.makedirs( f'{inventory_bucket}/{s3prefix}', exist_ok=True )
                             resourcewriter( dst=f'file://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
-
-class resourceEndponts():
-    def __init__(self, **kwargs):
-        # set defaults
-        self.opts = {}
-        self.opts["azure_management_endpoint"] = "https://management.azure.com"
-        self.opts["excludes"] = ['sqldb', 'vminstance'] # sqldb is broken and vminstance is handled by inventory_vm lambda
-
-        for key in kwargs:
-            self.opts[key] = kwargs[key]
-
-        self.res = {
-            "akscluster": {
-                "path": 'providers/Microsoft.ContainerService/managedClusters?api-version=2021-07-01',
-                "azcli": "az aks list",
-                "s3prefix": "aks/managedclusters",
-                "a_res_type": "Compute::AksCluster"
-                },
-            "applicationgateway": {
-                "path": 'providers/Microsoft.Network/applicationGateways?api-version=2021-03-01',
-                "azcli": "az network application-gateway list",
-                "s3prefix": "network/applicationgateway",
-                "a_res_type": "Network::ApplicationGateway"
-                },
-            "bastion": {
-                "path": 'providers/Microsoft.Network/bastionHosts?api-version=2021-03-01',
-                "azcli": "az network bastion list",
-                "s3prefix": "network/bastion",
-                "a_res_type": "Network::Bastion"
-                },
-            "containerregistry": {
-                "path": 'providers/Microsoft.ContainerRegistry/registries?api-version=2021-06-01-preview',
-                "azcli": "az acr list",
-                "s3prefix": "acr/containerregistry",
-                "a_res_type": "ACR::ContainerRegistry"
-                },
-            "functionapp": {
-                "path": 'providers/Microsoft.Web/sites?api-version=2020-09-01',
-                "azcli": "az functionapp list",
-                "s3prefix": "functions/app",
-                "a_res_type": "FunctionApp"
-            },
-            "hdinsight": {
-                "path": 'providers/Microsoft.HDInsight/clusters?api-version=2021-06-01',
-                "azcli": "az hdinsight list",
-                "s3prefix": "hdinsight/cluster",
-                "a_res_type": "HDInsight"
-                },
-            "keyvault": {
-                "path": 'resources?$filter=resourceType%20eq%20%27Microsoft.KeyVault%2Fvaults%27&api-version=2015-11-01',
-                "azcli": "az keyvault list",
-                "s3prefix": "keyvault",
-                "a_res_type": "KeyVault"
-                },
-            "nsg": {
-                "path": 'providers/Microsoft.Network/networkSecurityGroups?api-version=2021-03-01',
-                "azcli": "az network nsg list",
-                "s3prefix": "network/nsg",
-                "a_res_type": "NetworkSecurityGroup"
-                },
-            "rediscache": {
-                "path": 'providers/Microsoft.Cache/redis?api-version=2020-12-01',
-                "azcli": "az redis list",
-                "s3prefix": "redis/cluster",
-                "a_res_type": "RedisCache"
-                },
-            "sqlserver": {
-                "path": 'providers/Microsoft.SqlVirtualMachine/sqlVirtualMachines?api-version=2017-03-01-preview',
-                "azcli": "az sql vm list",
-                "s3prefix": "sql/vm",
-                "a_res_type": "SQLServer"
-                },
-            "sqldb": {
-                "comment": "requires sqlserver info like id, resourcegroup and server so must be a subsiquent call to 'sqlserver' call - seems broken in cli so won't work here",
-                "path": 'providers/Microsoft.SqlVirtualMachine/sqlVirtualMachines?api-version=2017-03-01-preview',
-                "azcli": "az sql db list",
-                "s3prefix": "sql/db",
-                "a_res_type": "SQLDB"
-                },
-            "storageaccount": {
-                "path": 'providers/Microsoft.Storage/storageAccounts?api-version=2021-06-01',
-                "azcli": "az storage account list",
-                "s3prefix": "storage/account",
-                "a_res_type": "Storage::StorageAccount"
-                },
-            "vminstance": {
-                "comment": "listing vms appears to be a multi rest call effort.  will have to circle back",
-                "path": 'providers/Microsoft.Compute/virtualMachines?api-version=2021-07-01',
-                "azcli": "az vm list",
-                "s3prefix": "vm/instance",
-                "a_res_type": "VMInstance"
-                },
-            "vmscaleset": {
-                "path": 'providers/Microsoft.Compute/virtualMachineScaleSets?api-version=2021-07-01',
-                "azcli": "az vmss list",
-                "s3prefix": "vm/scaleset",
-                "a_res_type": "VMSSInstance"
-                },
-            "vnet": {
-                "path": 'providers/Microsoft.Network/virtualNetworks?api-version=2021-03-01',
-                "azcli": "az network vnet list",
-                "s3prefix": "network/vnet",
-                "a_res_type": "Network::VNet"
-                }
-        }
-    def getAntiopeResourceType(self, resource):
-        return( self.res[resource]["a_res_type"] )
-
-    def getResourceEndpoint(self, resource, subscription ):
-        return( f'{self.opts[ "azure_management_endpoint"]}/subscriptions/{subscription}/{self.res[resource]["path"]}' )
-
-    def getKnownResources(self, **kwargs):
-        if "excludes" in kwargs:
-            excludes = kwargs["excludes"]
-        else:
-            excludes = self.opts["excludes"]
-        return(set( self.res.keys() ) - set(excludes) )
-
-    def getS3Prefix(self, resource):
-        return( self.res[resource]["s3prefix"] )
 
 def getAzureRegion(azure_resource_object):
     if "location" in azure_resource_object:

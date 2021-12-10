@@ -288,14 +288,14 @@ Resources:
   # Inventory Lambda Functions
   #
 
-  # PullVMDataLambdaFunction:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub "${AWS::StackName}-inventory-vm"
-  #     Description: AWS Lamdba to pull vm data from Azure Organization into the S3
-  #     Handler: inventory-vm.lambda_handler
-  #     Role: !GetAtt InventoryLambdaRole.Arn
-  #     CodeUri: ../lambda
+  InventoryResourceSQLDBLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-inventory-vm"
+      Description: AWS Lamdba to pull vm data from Azure Organization into the S3
+      Handler: inventory-resource-sqldb.lambda_handler
+      Role: !GetAtt InventoryLambdaRole.Arn
+      CodeUri: ../lambda
 
   #
   # Inventory Lambda Functions
@@ -368,13 +368,13 @@ Resources:
     Properties:
       DisplayName: !Sub "Triggers the Antiope Inventory of each Subscription"
 
-  # PullVMDataLambdaTriggerPermission:
-  #   Type: AWS::Lambda::Permission
-  #   Properties:
-  #     FunctionName: !GetAtt PullVMDataLambdaFunction.Arn
-  #     Principal: sns.amazonaws.com
-  #     SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
-  #     Action: lambda:invokeFunction
+  PullSQLDBDataLambdaTriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt InventoryResourceSQLDBLambdaFunction.Arn
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
+      Action: lambda:invokeFunction
 
   PullResourceDataLambdaTriggerPermission:
     Type: AWS::Lambda::Permission
@@ -392,12 +392,12 @@ Resources:
       SourceArn: !Ref TriggerSubscriptionInventoryFunctionTopic
       Action: lambda:invokeFunction
 
-  # PullVMDataLambdaFunctionTriggerSubscription:
-  #   Type: AWS::SNS::Subscription
-  #   Properties:
-  #     Endpoint: !GetAtt PullVMDataLambdaFunction.Arn
-  #     Protocol: lambda
-  #     TopicArn: !Ref 'TriggerSubscriptionInventoryFunctionTopic'
+  PullSQLDBDataLambdaFunctionTriggerSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt InventoryResourceSQLDBLambdaFunction.Arn
+      Protocol: lambda
+      TopicArn: !Ref 'TriggerSubscriptionInventoryFunctionTopic'
 
   PullResourceLambdaFunctionTriggerSubscription:
     Type: AWS::SNS::Subscription

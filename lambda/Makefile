@@ -12,6 +12,7 @@ FILES =	inventory-vm.py \
 		common.py \
 		inventory-resource.py \
 		inventory-resource-vm.py \
+		azureresources.py \
 		subscription.py
 
 DEPENDENCIES=
