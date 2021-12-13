@@ -39,7 +39,7 @@ Parameters:
   pMaxLambdaDuration:
     Description: How long to let the Lambda Run
     Type: Number
-    Default: 300
+    Default: 900
 
   pAntiopeMainStackName:
     Description: Name of the Antiope Main Stack
@@ -291,9 +291,9 @@ Resources:
   InventoryResourceSQLDBLambdaFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "${AWS::StackName}-inventory-vm"
+      FunctionName: !Sub "${AWS::StackName}-inventory-sqldb"
       Description: AWS Lamdba to pull vm data from Azure Organization into the S3
-      Handler: inventory-resource-sqldb.lambda_handler
+      Handler: inventory-resource-sqldb.handler
       Role: !GetAtt InventoryLambdaRole.Arn
       CodeUri: ../lambda
 
