@@ -123,7 +123,6 @@ def handler(event, context):
                             item_name = item["id"].split("/")[-1]
                             if item["id"] in nics_hash_by_vmid:
                                 supconfig = { "NetworkInterfaces": nics_hash_by_vmid[item["id"]] }
-                                print( 'adding net config')
                             else:
                                 supconfig = {}
                             antiope_resource = mapAzureReourceToAntiopeResource( item, 

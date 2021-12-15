@@ -15,7 +15,7 @@ FILES =	inventory-vm.py \
 		azureresources.py \
 		subscription.py
 
-DEPENDENCIES=
+DEPENDENCIES= dictor
 
 package: test clean zipfile
 

@@ -96,6 +96,13 @@ class resourceEndpoints():
                 "s3prefix": "network/nic",
                 "a_res_type": "Network::Nic"
                 },
+            "publicipaddresses": {
+                "comment": "produces a list of network configs with vm ids to be mapped back",
+                "path": 'providers/Microsoft.Network/publicIPAddresses?api-version=2021-03-01',
+                "azcli": "az network public-ip list",
+                "s3prefix": "network/publicip",
+                "a_res_type": "Network::PublicIp"
+                },
             "vmscaleset": {
                 "path": 'providers/Microsoft.Compute/virtualMachineScaleSets?api-version=2021-07-01',
                 "azcli": "az vmss list",
