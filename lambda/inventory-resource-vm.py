@@ -10,6 +10,7 @@ import json
 import datetime
 import logging
 
+from dictor import dictor
 from resourceloader import resourceloader
 from resourcewriter import resourcewriter
 from awssecret import get_secret
@@ -86,6 +87,7 @@ def handler(event, context):
         resource_endpoints = resourceEndpoints()
         #resources_to_capture = resource_endpoints.getKnownResources(excludes=['sqldb']) # sqldb is broken and vminstance is handled by inventory-vms.py lambda
         resources_to_capture = ["vminstance"]
+        resource_counts = {}
         for tenant in SubsByTenantHash:
             # authenticate into the 0th subscription using the subscription_id, tenant_id and key values
             authentication_endpoint = 'https://login.microsoftonline.com/'
@@ -99,27 +101,66 @@ def handler(event, context):
                 # if sub["subscription_id"] not in cg_azure_subs:
                 #     continue
                 logger.debug(f'Beginning resource capture for {tenant} {sub["display_name"]} {sub["subscription_id"]}.  Resources {resources_to_capture}')
+                nics_endpoint = resource_endpoints.getResourceEndpoint( 'networkinterface', sub["subscription_id"] )
+                sub_nics = []
+                while nics_endpoint:
+                    nics_response = requests.get(nics_endpoint,headers=headers).json()
+                    sub_nics.extend( nics_response["value"] )
+                    if "nextLink" in nics_response:
+                        nics_endpoint = nics_response["nextLink"]
+                    else:
+                        nics_endpoint = None
+                nics_hash_by_vmid = mk_nics_hash_by_vmid( sub_nics )
+
                 for resource in resources_to_capture:
                     resource_endpoint = resource_endpoints.getResourceEndpoint( resource, sub["subscription_id"] )
-                    resource_json_output = requests.get(resource_endpoint,headers=headers).json()
-                    if len( resource_json_output["value"] ) < 1:
-                        continue
-                    s3prefix = f'Azure_Resources/{resource_endpoints.getS3Prefix(resource)}'
-                    for item in resource_json_output["value"]:
-                        item_name = item["id"].split("/")[-1]
-                        antiope_resource = mapAzureReourceToAntiopeResource( item, 
-                                                            resource_endpoints.getAntiopeResourceType( resource ), 
-                                                            subscription_id=sub["subscription_id"], 
-                                                            sub_display_name=sub["display_name"],
-                                                            tenant_id=tenant_secrets[tenant]["tenant_id"],
-                                                            tenant_name=tenant 
-                                                            )
-                        if os.getenv( 'AWS_EXECUTION_ENV' ):
-                            resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
-                        else: # assume we are testing locally 
-                            os.makedirs( f'{inventory_bucket}/{s3prefix}', exist_ok=True )
-                            resourcewriter( dst=f'file://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
+                    while resource_endpoint:
+                        resource_json_output = requests.get(resource_endpoint,headers=headers).json()
+                        if len( resource_json_output["value"] ) < 1:
+                            break
+                        s3prefix = f'Azure_Resources/{resource_endpoints.getS3Prefix(resource)}'
+                        for item in resource_json_output["value"]:
+                            item_name = item["id"].split("/")[-1]
+                            if item["id"] in nics_hash_by_vmid:
+                                supconfig = { "NetworkInterfaces": nics_hash_by_vmid[item["id"]] }
+                                print( 'adding net config')
+                            else:
+                                supconfig = {}
+                            antiope_resource = mapAzureReourceToAntiopeResource( item, 
+                                                                resource_endpoints.getAntiopeResourceType( resource ), 
+                                                                subscription_id=sub["subscription_id"], 
+                                                                sub_display_name=sub["display_name"],
+                                                                tenant_id=tenant_secrets[tenant]["tenant_id"],
+                                                                tenant_name=tenant,
+                                                                supplementaryConfiguration=supconfig
+                                                                )
+                            if os.getenv( 'AWS_EXECUTION_ENV' ):
+                                resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
+                            else: # assume we are testing locally 
+                                os.makedirs( f'{inventory_bucket}/{s3prefix}', exist_ok=True )
+                                resourcewriter( dst=f'file://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
+                            if sub["subscription_id"] not in resource_counts:
+                                resource_counts[sub["subscription_id"]] = 0
+                            resource_counts[sub["subscription_id"]] += 1
 
+                        if "nextLink" in resource_json_output:
+                            resource_endpoint = resource_json_output[ "nextLink" ]
+                        else:
+                            resource_endpoint = None
+                                                       
+            for sub_id in resource_counts:
+                logger.info( f'{resource_counts[sub_id]} reources for {sub_id} {AzureSubsHash[sub_id]["display_name"]} written.')
+
+
+def mk_nics_hash_by_vmid(nics):
+    hash = {}
+    for nic in nics:
+        vmid = dictor( nic, "properties.virtualMachine.id" ) 
+        if vmid:
+            if vmid not in hash:
+                hash[vmid] = []
+            hash[vmid].append( nic )
+    return hash 
 
 
 def getAzureRegion(azure_resource_object):
@@ -142,6 +183,10 @@ def mapAzureReourceToAntiopeResource(azure_resource_object, antiope_resource_typ
     resource_item['resourceId']                     = azure_resource_object["id"]
     resource_item['resourceCreationTime']           = "unknown"
     resource_item['errors']                         = {}
+
+    if kwargs:
+        resource_item.update( **kwargs )
+
     return( resource_item )
 
 

@@ -89,6 +89,13 @@ class resourceEndpoints():
                 "s3prefix": "vm/instance",
                 "a_res_type": "VM::VirtualMachine"
                 },
+            "networkinterface": {
+                "comment": "produces a list of network configs with vm ids to be mapped back",
+                "path": 'providers/Microsoft.Network/networkInterfaces?api-version=2021-03-01',
+                "azcli": "az network nic list",
+                "s3prefix": "network/nic",
+                "a_res_type": "Network::Nic"
+                },
             "vmscaleset": {
                 "path": 'providers/Microsoft.Compute/virtualMachineScaleSets?api-version=2021-07-01',
                 "azcli": "az vmss list",
