@@ -98,6 +98,7 @@ def handler(event, context):
             for sub in SubsByTenantHash[ tenant ]:
                 # Limit to only those subscriptions onboarded to CloudGuard
                 if sub["subscription_id"] not in cg_azure_subs:
+                    print( f'{sub["subscription_id"]} {sub["display_name"]}')
                     continue
                 logger.debug(f'Beginning resource capture for {tenant} {sub["display_name"]} {sub["subscription_id"]}.  Resources {resources_to_capture}')
 

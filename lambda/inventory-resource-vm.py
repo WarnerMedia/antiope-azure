@@ -134,7 +134,7 @@ def handler(event, context):
                                                                 supplementaryConfiguration=supconfig
                                                                 )
                             if os.getenv( 'AWS_EXECUTION_ENV' ):
-                                resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
+                                resourcewriter( dst=f's3://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=False).writedata( json.dumps(antiope_resource, indent=2))
                             else: # assume we are testing locally 
                                 os.makedirs( f'{inventory_bucket}/{s3prefix}', exist_ok=True )
                                 resourcewriter( dst=f'file://{inventory_bucket}/{s3prefix}/{item_name}.json', verbosity=True).writedata( json.dumps(antiope_resource, indent=2))
