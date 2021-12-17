@@ -13,6 +13,8 @@ FILES =	inventory-vm.py \
 		inventory-resource.py \
 		inventory-resource-vm.py \
 		azureresources.py \
+		splunk-ingest.py \
+		spounkhec.py \
 		subscription.py
 
 DEPENDENCIES= dictor

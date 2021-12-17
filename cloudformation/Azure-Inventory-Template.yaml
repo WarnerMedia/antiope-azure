@@ -69,6 +69,18 @@ Parameters:
     Type: String
     Default: arn:aws:secretsmanager:us-east-1:501561212468:secret:antiope-cloudguard-subscriptions-curator-dev-OXIli8
 
+  pSplunkHecUrl:
+    Type: String
+    Description: Splunk HEC URL
+
+  pSplunkIndex:
+    Type: String
+    Description: Splunk Index
+
+  pSearchIngestQueueArn:
+    Type: String
+    Description: Arn of the SQS Queue that feeds ElasticSearch
+
 Globals:
   Function:
     Runtime: python3.6
@@ -107,6 +119,18 @@ Resources:
             AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
           Action: "kms:*"
           Resource: "*"
+        - Sid: Allow s3 use of the key
+          Effect: Allow
+          Principal:
+            Service:
+            - s3.amazonaws.com
+            - sqs.amazonaws.com
+            - lambda.amazonaws.com
+            - sns.amazonaws.com
+          Action:
+          - kms:GenerateDataKey*
+          - kms:Decrypt
+          Resource: '*'
 
   KMSKeyAlias:
     Type: AWS::KMS::Alias
@@ -122,6 +146,13 @@ Resources:
       SecretString: !Ref pAzureServiceSecretString
       KmsKeyId: !Ref KMSKeyAlias
 
+  HecAccessTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Splunk HEC access token
+      Name: !Sub "${AWS::StackName}-splunk-ingest"
+      SecretString: '{"HecAccessToken": "TokenGoesHere"}'
+      KmsKeyId: !Ref KMSKeyAlias
   #
   # DynamoDB Tables
   #
@@ -140,6 +171,20 @@ Resources:
           KeyType: "HASH"
       StreamSpecification:
         StreamViewType: NEW_IMAGE
+
+  #
+  # SQS queue to feed the Splunk Ingest function
+  #
+  SplunkIngestEventQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !Ref KMSKeyAlias
+      KmsDataKeyReusePeriodSeconds: 86400
+      MessageRetentionPeriod: 3600
+      ReceiveMessageWaitTimeSeconds: 10
+      # RedrivePolicy:
+      #   FIXME
+      VisibilityTimeout: 300
 
   #
   # Lambda Role
@@ -248,6 +293,7 @@ Resources:
             Resource: 
               - !Ref AzureServiceSecret
               - !Ref pCloudGuardSecretArn
+              - !Ref HecAccessTokenSecret
       - PolicyName: PublishToSQS
         PolicyDocument:
           Version: '2012-10-17'
@@ -257,8 +303,10 @@ Resources:
             - sqs:SendMessage
             - sqs:ReceiveMessage
             - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
             Resource:
               - !Sub '{{resolve:ssm:${pAntiopeMainStackName}-ErrorQueueArn:${pErrorQueueArnParamVersion}}}'
+              - !GetAtt SplunkIngestEventQueue.Arn
       - PolicyName: KMSAccess
         PolicyDocument:
           Version: "2012-10-17"
@@ -322,7 +370,134 @@ Resources:
       Handler: inventory-resource-vm.handler
       Role: !GetAtt InventoryLambdaRole.Arn
       CodeUri: ../lambda
+  
+  BucketEventSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${AWS::StackName}-BucketEvents
+      KmsMasterKeyId:
+        Ref: KMSKeyAlias
 
+  BucketEventSnsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: InventoryS3SnsNotification
+        Statement:
+        - Sid: LoggingS3SnsNotification
+          Effect: Allow
+          Principal:
+            AWS: '*'
+          Action:
+          - SNS:Publish
+          - SNS:Receive
+          Resource:
+            Ref: BucketEventSnsTopic
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+                Fn::Sub: arn:aws:s3:*:*:${pBucketName}
+            StringEquals:
+              aws:SourceAccount:
+                Ref: AWS::AccountId
+      Topics:
+      - Ref: BucketEventSnsTopic
+      
+
+  HecAccessTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Splunk HEC access token
+      Name: !Sub "${AWS::StackName}-splunk-ingest"
+      SecretString: '{"HecAccessToken": "TokenGoesHere"}'
+      KmsKeyId: !Ref KMSKeyAlias
+
+  SplunkIngestS3Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-splunk-ingest"
+      Description: AWS Lamdba to pull vm data from Azure Organization into the S3
+      Handler: splunk-ingest.handler
+      Role: !GetAtt InventoryLambdaRole.Arn
+      CodeUri: ../lambda
+      Environment:
+        Variables:
+          SplunkHecUrl: !Ref pSplunkHecUrl
+          SplunkIndex: !Ref pSplunkIndex
+          HecAccessTokenSecretArn: !Ref HecAccessTokenSecret
+          LOG_LEVEL: INFO
+      
+  SplunkIngestEventQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SplunkIngestEventQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Id: AllowS3
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: '*'
+          Action:
+          - SQS:SendMessage
+          Resource: !GetAtt SplunkIngestEventQueue.Arn
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+                - !Sub "arn:aws:s3:*:*:${pBucketName}"
+                - !Ref BucketEventSnsTopic
+
+  # subscribe to SNS topic of bucket.
+  SplunkQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref BucketEventSnsTopic
+      Endpoint: !GetAtt SplunkIngestEventQueue.Arn
+      # RedrivePolicy:
+      #   deadLetterTargetArn: !GetAtt DeadLetterSQSQueue.Arn
+
+  # subscribe to SNS topic of bucket.
+  SearchQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref BucketEventSnsTopic
+      Endpoint: !Ref pSearchIngestQueueArn
+      # RedrivePolicy:
+      #   deadLetterTargetArn: !GetAtt DeadLetterSQSQueue.Arn
+
+  SplunkIngestS3FunctionMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10 # 10 is Max
+      Enabled: True
+      EventSourceArn: !GetAtt SplunkIngestEventQueue.Arn
+      FunctionName: !GetAtt SplunkIngestS3Function.Arn
+
+  SpunkIngestEventQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: True
+      # AlarmActions:
+      #   - String
+      AlarmDescription: "Alert when Queue doesn't properly drain"
+      AlarmName: !Sub "${AWS::StackName}-SplunkQueueFull"
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SplunkIngestEventQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      # OKActions:
+      #   - String
+      Period: 300
+      Statistic: Average
+      Threshold: 80000
+      TreatMissingData: missing
   #
   # State Machine Lambda Functions
   #
