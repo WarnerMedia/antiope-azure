@@ -11,10 +11,13 @@ from azure.identity import ClientSecretCredential
 
 # Setup Logging
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logging.getLogger('botocore').setLevel(logging.WARNING)
-logging.getLogger('boto3').setLevel(logging.WARNING)
-# TODO - Figure out what stupid module Azure uses for logger so I can suppress all their damn debug messages.
+logger = logging.getLogger()
+for name in logging.Logger.manager.loggerDict.keys():
+    if ('boto' in name) or ('urllib3' in name) or ('s3transfer' in name) or ('boto3' in name) or ('botocore' in name) or ('nose' in name) or ('azure' in name) or ('msal' in name):
+        logging.getLogger(name).setLevel(logging.WARNING)
+logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', default='INFO')))
+logging.basicConfig()
+
 
 
 def handler(event, context):
@@ -60,7 +63,7 @@ def handler(event, context):
             }
 
             # Add subscriptions to DynamoDB subscriptions table.
-            #create_or_update_subscription(subscription_dict, subscription_table)
+            create_or_update_subscription(subscription_dict, subscription_table)
 
         if collected_subs is None:
             raise Exception("No Subscriptions found. Aborting...")
@@ -72,7 +75,7 @@ def handler(event, context):
 
 def create_or_update_subscription(subscription, subscription_table):
     logger.info(u"Adding subscription {}".format(subscription))
-
+    
     try:
         response = subscription_table.update_item(
             Key= {'subscription_id': subscription["subscription_id"]},
