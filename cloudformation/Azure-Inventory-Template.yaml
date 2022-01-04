@@ -184,7 +184,7 @@ Resources:
       ReceiveMessageWaitTimeSeconds: 10
       # RedrivePolicy:
       #   FIXME
-      VisibilityTimeout: 300
+      VisibilityTimeout: 900
 
   #
   # Lambda Role
